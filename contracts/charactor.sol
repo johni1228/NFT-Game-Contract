@@ -24,25 +24,7 @@ contract Characters is Initializable, ERC721Upgradeable, AccessControlUpgradeabl
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
-
-    function migrateTo_ef994e2(Promos _promos) public {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        promos = _promos;
-    }
-
-    function migrateTo_b627f23() external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        characterLimit = 4;
-    }
-
-    function migrateTo_1a19cbb(Garrison _garrison) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        garrison = _garrison;
-    }
-
+    
     /*
         visual numbers start at 0, increment values by 1
         levels: 1-256

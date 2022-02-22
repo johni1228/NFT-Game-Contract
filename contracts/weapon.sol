@@ -24,35 +24,6 @@ contract Weapons is Initializable, ERC721Upgradeable, AccessControlUpgradeable {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function migrateTo_e55d8c5() public {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        burnPointMultiplier = 2;
-        lowStarBurnPowerPerPoint = 15;
-        fourStarBurnPowerPerPoint = 30;
-        fiveStarBurnPowerPerPoint = 60;
-    }
-
-    function migrateTo_aa9da90() public {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        oneFrac = ABDKMath64x64.fromUInt(1);
-        powerMultPerPointBasic =  ABDKMath64x64.divu(1, 400);// 0.25%
-        powerMultPerPointPWR = powerMultPerPointBasic.mul(ABDKMath64x64.divu(103, 100)); // 0.2575% (+3%)
-        powerMultPerPointMatching = powerMultPerPointBasic.mul(ABDKMath64x64.divu(107, 100)); // 0.2675% (+7%)
-    }
-
-    function migrateTo_951a020() public {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-        _registerInterface(0xe62e6974); // TransferCooldownableInterfaceId.interfaceId()
-    }
-
-    function migrateTo_surprise(Promos _promos) public {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender));
-
-        promos = _promos;
-    }
-
     struct Weapon {
         uint16 properties; // right to left: 3b stars, 2b trait, 7b stat pattern, 4b EMPTY
         // stats (each point refers to .25% improvement)
