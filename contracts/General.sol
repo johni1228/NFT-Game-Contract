@@ -41,7 +41,7 @@ contract Generol is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
         Weapon weapon = weapons[_weaponId];
         _mintAnElement(_to);
     }
-    function _mintAnElement(address _to， Character _character, Weapon _weapon) private {
+    function _mintAnElement(address _to, Character _character, Weapon _weapon) private {
         uint id = _totalSupply();
         _tokenIdTracker.increment();
         _safeMint(_to, id);
