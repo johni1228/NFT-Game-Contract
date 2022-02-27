@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./ERC721Pausable.sol";
 
-contract Weapon is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
+contract Character is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
     using Strings for uint8;
@@ -19,13 +19,16 @@ contract Weapon is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
     string public baseTokenURI;
 
     /**
-     * @dev typeIdOf will have 3 values - 1: Shield, 2: Axe, 3: Sword, 4: Helmet, 5: Boots, 6: Chainmail, 7: Knife 
+     * @dev typeIdOf will only have 3 values - 1: Dwarf, 2: Elf, 3: Human 
      */   
     mapping (uint256 => uint8) tokenIdOf;  // tokenId : the type of character 
 
-    event CreateWeapon(address indexed minter, uint256 indexed tokenId, uint8 indexed typeOf);
+    event CreateCharacter(address indexed minter, uint256 indexed tokenId, uint8 indexed typeOf);
+    event UpgradeLife(address _address, uint256 tokenId);
+    event UpgradeAttack(address _address, uint256 tokenId);
+    event UpgradeDefence(address _address, uint256 tokenId);
 
-    constructor(string memory baseURI) ERC721("Weapon", "WP") {
+    constructor(string memory baseURI) ERC721("Character", "CHT") {
         setBaseURI(baseURI);
         pause(true);
     }
@@ -62,7 +65,7 @@ contract Weapon is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
         _tokenIdTracker.increment();
         _safeMint(_to, id);
         tokenIdOf[id] = typeOf;
-        emit CreateWeapon(_to, id, typeOf);
+        emit CreateCharacter(_to, id, typeOf);
     }
 
     function _baseURI() internal view virtual override returns (string memory) {
@@ -102,6 +105,21 @@ contract Weapon is ERC721Enumerable, Ownable, ERC721Burnable, ERC721Pausable {
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    function _upgradeLife(uint256 tokenId) internal {
+        require(msg.sender == ownerOf(tokenId));
+        emit UpgradeLife(msg.sender, tokenId);
+    }
+
+    function _upgradeAttack(uint256 tokenId) internal {
+        require(msg.sender == ownerOf(tokenId));
+        emit UpgradeAttack(msg.sender, tokenId);
+    }
+
+    function _upgradeDefence(uint256 tokenId) internal {
+        require(msg.sender == ownerOf(tokenId));
+        emit UpgradeDefence(msg.sender, tokenId);
     }
     
 }
