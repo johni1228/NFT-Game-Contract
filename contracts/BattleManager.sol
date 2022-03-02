@@ -4,11 +4,18 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./Character.sol";
+
+interface ICharacter {
+    function _upgradeLife(uint256 tokenId) external;
+    function _upgradeDefence(uint256 tokenId) external;
+    function _upgradeAttack(uint256 tokenId) external;
+}
 
 contract BattleManager is Ownable {
 
     using SafeMath for uint256;
+
+    ICharacter character;
 
     bool private _isUpgradableLife;
     bool private _isUpgradableDefence;
@@ -26,8 +33,12 @@ contract BattleManager is Ownable {
         address member;
         uint256 characterId;
     }
+
+    constructor(address _character) {
+        character = ICharacter(_character);
+    };
     
-    uint memberSize = 2;
+    uint256 memberSize = 2;
     BattleMember[] battleMemebers = new BattleMember[](memberSize);
 
     modifier onlyEndBattle {
@@ -69,12 +80,12 @@ contract BattleManager is Ownable {
         uint256 deposited = msg.value;
         address receiver = address(this);
         maticBalanceOf[sender] = maticBalanceOf[sender].add(deposited);
-        receiver.transfer(deposited);
+        payable(receiver).transfer(deposited);
         emit Deposit(sender, deposited);
     }
 
     function widthdraw() external payable onlyEndBattle {
-        uint256 balance = maticBalanceOf(msg.sender);
+        uint256 balance = maticBalanceOf[msg.sender];
         require(balance > 0);
         (bool success, bytes memory data) = address(msg.sender).call{value: balance}("");
         require(success, "Transfer failed.");
@@ -84,15 +95,15 @@ contract BattleManager is Ownable {
     function upgradeLife() external onlyWinner(msg.sender) onlyEndBattle {
         require(!_isUpgradableLife, "Upgrade life");
         if(battleMemebers[0].member == msg.sender)
-            _upgradeLife(battleMemebers[0].characterId);
-        else _upgradeLife(battleMemebers[1].characterId);
+            character._upgradeLife(battleMemebers[0].characterId);
+        else character._upgradeLife(battleMemebers[1].characterId);
         _isUpgradableLife = true;
     }
 
     function upgradeDefence() external onlyWinner(msg.sender) onlyEndBattle {
         require(!_isUpgradableDefence, "Upgrade life");
         if(battleMemebers[0].member == msg.sender)
-            _upgradeDefence(battleMemebers[0].characterId);
+            character._upgradeDefence(battleMemebers[0].characterId);
         else _upgradeDefence(battleMemebers[1].characterId);
         _isUpgradableDefence = true;
     }
@@ -100,8 +111,8 @@ contract BattleManager is Ownable {
     function upgradeAttack() external onlyWinner(msg.sender) onlyEndBattle {
         require(!_isUpgradableAttack, "Upgrade life");
         if(battleMemebers[0].member == msg.sender)
-            _upgradeAttack(battleMemebers[0].characterId);
-        else _upgradeAttack(battleMemebers[1].characterId);
+            character._upgradeAttack(battleMemebers[0].characterId);
+        else character._upgradeAttack(battleMemebers[1].characterId);
         _isUpgradableAttack = true;
     }
 }
