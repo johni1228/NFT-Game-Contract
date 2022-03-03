@@ -36,7 +36,7 @@ contract BattleManager is Ownable {
 
     constructor(address _character) {
         character = ICharacter(_character);
-    };
+    }
     
     uint256 memberSize = 2;
     BattleMember[] battleMemebers = new BattleMember[](memberSize);
@@ -104,7 +104,7 @@ contract BattleManager is Ownable {
         require(!_isUpgradableDefence, "Upgrade life");
         if(battleMemebers[0].member == msg.sender)
             character._upgradeDefence(battleMemebers[0].characterId);
-        else _upgradeDefence(battleMemebers[1].characterId);
+        else character._upgradeDefence(battleMemebers[1].characterId);
         _isUpgradableDefence = true;
     }
 
