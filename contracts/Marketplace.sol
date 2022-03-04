@@ -2,11 +2,13 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract Marketplace is ReentrancyGuard, Ownable {
   using Counters for Counters.Counter;
+  using SafeMath for uint256;
   Counters.Counter private _itemIds;
   Counters.Counter private _itemSold;
   Counters.Counter private _itemCancel;
@@ -15,6 +17,7 @@ contract Marketplace is ReentrancyGuard, Ownable {
 
   address public marketWallet;
   uint256 public marketFee = 3;
+  uint256 private maxFee = 100;
   uint256 public price = 10;
 
   struct MarketItem {
@@ -97,7 +100,8 @@ contract Marketplace is ReentrancyGuard, Ownable {
     uint tokenId = idToMarketItem[itemId].tokenId;
     require(msg.value == price, "Please submit the asking price in order to complete the purchase");
 
-    idToMarketItem[itemId].seller.transfer(msg.value);
+    idToMarketItem[itemId].seller.transfer(msg.value.mul(maxFee.div(marketFee)));
+    payable(marketWallet).transfer(msg.value.mul(marketFee));
     IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
     idToMarketItem[itemId].owner = payable(msg.sender);
     idToMarketItem[itemId].sold = true;
