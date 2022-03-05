@@ -1,38 +1,4 @@
-/**
- *Submitted for verification at Etherscan.io on 2020-05-11
-*/
-
 pragma solidity ^0.8.0;
-/**
- * @title Helps contracts guard against reentrancy attacks.
- * @author Remco Bloemen <remco@2π.com>, Eenae <alexey@mixbytes.io>
- * @dev If you mark a function `nonReentrant`, you should also
- * mark it `external`.
- */
-contract ReentrancyGuard {
-    /// @dev counter to allow mutex lock with only one SSTORE operation
-    uint256 private _guardCounter;
-
-    constructor() public {
-        // The counter starts at one to prevent changing it from zero to a non-zero
-        // value, which is a more expensive operation.
-        _guardCounter = 1;
-    }
-
-    /**
-     * @dev Prevents a contract from calling itself, directly or indirectly.
-     * Calling a `nonReentrant` function from another `nonReentrant`
-     * function is not supported. It is possible to prevent this from happening
-     * by making the `nonReentrant` function external, and make it call a
-     * `private` function that does the actual work.
-     */
-    modifier nonReentrant() {
-        _guardCounter += 1;
-        uint256 localCounter = _guardCounter;
-        _;
-        require(localCounter == _guardCounter);
-    }
-}
 
 // @title Admin contract for NFTfi. Holds owner-only functions to adjust
 //        contract-wide fees, parameters, etc.
@@ -104,26 +70,6 @@ contract NFTfiAdmin is Ownable, Pausable, ReentrancyGuard {
         nftContractIsWhitelisted[address(0x06012c8cf97BEaD5deAe237070F9587f8E7A266d)] = true;
     }
 
-    /* ********* */
-    /* FUNCTIONS */
-    /* ********* */
-
-    /**
-     * @dev Gets the token name
-     * @return string representing the token name
-     */
-    function name() external pure returns (string memory) {
-        return "NFTfi Promissory Note";
-    }
-
-    /**
-     * @dev Gets the token symbol
-     * @return string representing the token symbol
-     */
-    function symbol() external pure returns (string memory) {
-        return "NFTfi";
-    }
-
     // @notice This function can be called by admins to change the whitelist
     //         status of an ERC20 currency. This includes both adding an ERC20
     //         currency to the whitelist and removing it.
@@ -179,70 +125,6 @@ contract NFTfiAdmin is Ownable, Pausable, ReentrancyGuard {
         emit AdminFeeUpdated(_newAdminFeeInBasisPoints);
     }
 }
-
-// File: contracts/NFTfi/v1/openzeppelin/ECDSA.sol
-
-
-
-/**
- * @title Elliptic curve signature operations
- * @dev Based on https://gist.github.com/axic/5b33912c6f61ae6fd96d6c4a47afde6d
- * TODO Remove this library once solidity supports passing a signature to ecrecover.
- * See https://github.com/ethereum/solidity/issues/864
- */
-
-library ECDSA {
-    /**
-     * @dev Recover signer address from a message by using their signature
-     * @param hash bytes32 message, the hash is the signed message. What is recovered is the signer address.
-     * @param signature bytes signature, the signature is generated using web3.eth.sign()
-     */
-    function recover(bytes32 hash, bytes memory signature) internal pure returns (address) {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        // Check the signature length
-        if (signature.length != 65) {
-            return (address(0));
-        }
-
-        // Divide the signature in r, s and v variables
-        // ecrecover takes the signature parameters, and the only way to get them
-        // currently is to use assembly.
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            r := mload(add(signature, 0x20))
-            s := mload(add(signature, 0x40))
-            v := byte(0, mload(add(signature, 0x60)))
-        }
-
-        // Version of signature should be 27 or 28, but 0 and 1 are also possible versions
-        if (v < 27) {
-            v += 27;
-        }
-
-        // If the version is correct return the signer address
-        if (v != 27 && v != 28) {
-            return (address(0));
-        } else {
-            return ecrecover(hash, v, r, s);
-        }
-    }
-
-    /**
-     * toEthSignedMessageHash
-     * @dev prefix a bytes32 value with "\x19Ethereum Signed Message:"
-     * and hash the result
-     */
-    function toEthSignedMessageHash(bytes32 hash) internal pure returns (bytes32) {
-        // 32 is the length in bytes of hash,
-        // enforced by the type signature above
-        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
-    }
-}
-
-// File: contracts/NFTfi/v1/NFTfiSigningUtils.sol
 
 pragma solidity ^0.5.16;
 
