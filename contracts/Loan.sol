@@ -1,134 +1,3 @@
-pragma solidity ^0.8.0;
-
-// @title Admin contract for NFTfi. Holds owner-only functions to adjust
-//        contract-wide fees, parameters, etc.
-// @author smartcontractdev.eth, creator of wrappedkitties.eth, cwhelper.eth, and
-//         kittybounties.eth
-contract NFTfiAdmin is Ownable, Pausable, ReentrancyGuard {
-
-    /* ****** */
-    /* EVENTS */
-    /* ****** */
-
-    // @notice This event is fired whenever the admins change the percent of
-    //         interest rates earned that they charge as a fee. Note that
-    //         newAdminFee can never exceed 10,000, since the fee is measured
-    //         in basis points.
-    // @param  newAdminFee - The new admin fee measured in basis points. This
-    //         is a percent of the interest paid upon a loan's completion that
-    //         go to the contract admins.
-    event AdminFeeUpdated(
-        uint256 newAdminFee
-    );
-
-    /* ******* */
-    /* STORAGE */
-    /* ******* */
-
-    // @notice A mapping from from an ERC20 currency address to whether that
-    //         currency is whitelisted to be used by this contract. Note that
-    //         NFTfi only supports loans that use ERC20 currencies that are
-    //         whitelisted, all other calls to beginLoan() will fail.
-    mapping (address => bool) public erc20CurrencyIsWhitelisted;
-
-    // @notice A mapping from from an NFT contract's address to whether that
-    //         contract is whitelisted to be used by this contract. Note that
-    //         NFTfi only supports loans that use NFT collateral from contracts
-    //         that are whitelisted, all other calls to beginLoan() will fail.
-    mapping (address => bool) public nftContractIsWhitelisted;
-
-    // @notice The maximum duration of any loan started on this platform,
-    //         measured in seconds. This is both a sanity-check for borrowers
-    //         and an upper limit on how long admins will have to support v1 of
-    //         this contract if they eventually deprecate it, as well as a check
-    //         to ensure that the loan duration never exceeds the space alotted
-    //         for it in the loan struct.
-    uint256 public maximumLoanDuration = 53 weeks;
-
-    // @notice The maximum number of active loans allowed on this platform.
-    //         This parameter is used to limit the risk that NFTfi faces while
-    //         the project is first getting started.
-    uint256 public maximumNumberOfActiveLoans = 100;
-
-    // @notice The percentage of interest earned by lenders on this platform
-    //         that is taken by the contract admin's as a fee, measured in
-    //         basis points (hundreths of a percent).
-    uint256 public adminFeeInBasisPoints = 25;
-
-    /* *********** */
-    /* CONSTRUCTOR */
-    /* *********** */
-
-    constructor() internal {
-        // Whitelist mainnet WETH
-        erc20CurrencyIsWhitelisted[address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)] = true;
-
-        // Whitelist mainnet DAI
-        erc20CurrencyIsWhitelisted[address(0x6B175474E89094C44Da98b954EedeAC495271d0F)] = true;
-
-        // Whitelist mainnet CryptoKitties
-        nftContractIsWhitelisted[address(0x06012c8cf97BEaD5deAe237070F9587f8E7A266d)] = true;
-    }
-
-    // @notice This function can be called by admins to change the whitelist
-    //         status of an ERC20 currency. This includes both adding an ERC20
-    //         currency to the whitelist and removing it.
-    // @param  _erc20Currency - The address of the ERC20 currency whose whitelist
-    //         status changed.
-    // @param  _setAsWhitelisted - The new status of whether the currency is
-    //         whitelisted or not.
-    function whitelistERC20Currency(address _erc20Currency, bool _setAsWhitelisted) external onlyOwner {
-        erc20CurrencyIsWhitelisted[_erc20Currency] = _setAsWhitelisted;
-    }
-
-    // @notice This function can be called by admins to change the whitelist
-    //         status of an NFT contract. This includes both adding an NFT
-    //         contract to the whitelist and removing it.
-    // @param  _nftContract - The address of the NFT contract whose whitelist
-    //         status changed.
-    // @param  _setAsWhitelisted - The new status of whether the contract is
-    //         whitelisted or not.
-    function whitelistNFTContract(address _nftContract, bool _setAsWhitelisted) external onlyOwner {
-        nftContractIsWhitelisted[_nftContract] = _setAsWhitelisted;
-    }
-
-    // @notice This function can be called by admins to change the
-    //         maximumLoanDuration. Note that they can never change
-    //         maximumLoanDuration to be greater than UINT32_MAX, since that's
-    //         the maximum space alotted for the duration in the loan struct.
-    // @param  _newMaximumLoanDuration - The new maximum loan duration, measured
-    //         in seconds.
-    function updateMaximumLoanDuration(uint256 _newMaximumLoanDuration) external onlyOwner {
-        require(_newMaximumLoanDuration <= uint256(~uint32(0)), 'loan duration cannot exceed space alotted in struct');
-        maximumLoanDuration = _newMaximumLoanDuration;
-    }
-
-    // @notice This function can be called by admins to change the
-    //         maximumNumberOfActiveLoans. 
-    // @param  _newMaximumNumberOfActiveLoans - The new maximum number of
-    //         active loans, used to limit the risk that NFTfi faces while the
-    //         project is first getting started.
-    function updateMaximumNumberOfActiveLoans(uint256 _newMaximumNumberOfActiveLoans) external onlyOwner {
-        maximumNumberOfActiveLoans = _newMaximumNumberOfActiveLoans;
-    }
-
-    // @notice This function can be called by admins to change the percent of
-    //         interest rates earned that they charge as a fee. Note that
-    //         newAdminFee can never exceed 10,000, since the fee is measured
-    //         in basis points.
-    // @param  _newAdminFeeInBasisPoints - The new admin fee measured in basis points. This
-    //         is a percent of the interest paid upon a loan's completion that
-    //         go to the contract admins.
-    function updateAdminFee(uint256 _newAdminFeeInBasisPoints) external onlyOwner {
-        require(_newAdminFeeInBasisPoints <= 10000, 'By definition, basis points cannot exceed 10000');
-        adminFeeInBasisPoints = _newAdminFeeInBasisPoints;
-        emit AdminFeeUpdated(_newAdminFeeInBasisPoints);
-    }
-}
-
-pragma solidity ^0.5.16;
-
-
 // @title  Helper contract for NFTfi. This contract manages verifying signatures
 //         from off-chain NFTfi orders.
 // @author smartcontractdev.eth, creator of wrappedkitties.eth, cwhelper.eth,
@@ -138,196 +7,13 @@ pragma solidity ^0.5.16;
 //         https://dzone.com/articles/signing-and-verifying-ethereum-signatures
 // @notice Cite: I also relied on this article somewhat:
 //         https://forum.openzeppelin.com/t/sign-it-like-you-mean-it-creating-and-verifying-ethereum-signatures/697
-contract NFTfiSigningUtils {
 
-    /* *********** */
-    /* CONSTRUCTOR */
-    /* *********** */
+pragma solidity ^0.8.0;
 
-    constructor() internal {}
-
-    /* ********* */
-    /* FUNCTIONS */
-    /* ********* */
-
-    // @notice OpenZeppelin's ECDSA library is used to call all ECDSA functions
-    //         directly on the bytes32 variables themselves.
-    using ECDSA for bytes32;
-
-    // @notice This function gets the current chain ID.
-    function getChainID() public view returns (uint256) {
-        uint256 id;
-        assembly {
-            id := chainid()
-        }
-        return id;
-    }
-
-    // @notice This function is called in NFTfi.beginLoan() to validate the
-    //         borrower's signature that the borrower provided off-chain to
-    //         verify that they did indeed want to use this NFT for this loan.
-    // @param  _nftCollateralId - The ID within the NFTCollateralContract for
-    //         the NFT being used as collateral for this loan. The NFT is
-    //         stored within this contract during the duration of the loan.
-    // @param  _borrowerNonce - The nonce referred to here
-    //         is not the same as an Ethereum account's nonce. We are referring
-    //         instead to nonces that are used by both the lender and the
-    //         borrower when they are first signing off-chain NFTfi orders.
-    //         These nonces can be any uint256 value that the user has not
-    //         previously used to sign an off-chain order. Each nonce can be
-    //         used at most once per user within NFTfi, regardless of whether
-    //         they are the lender or the borrower in that situation. This
-    //         serves two purposes. First, it prevents replay attacks where an
-    //         attacker would submit a user's off-chain order more than once.
-    //         Second, it allows a user to cancel an off-chain order by calling
-    //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
-    //         off-chain order that contains that nonce.
-    // @param  _nftCollateralContract - The ERC721 contract of the NFT
-    //         collateral
-    // @param  _borrower - The address of the borrower.
-    // @param  _borrowerSignature - The ECDSA signature of the borrower,
-    //         obtained off-chain ahead of time, signing the following
-    //         combination of parameters: _nftCollateralId, _borrowerNonce,
-    //         _nftCollateralContract, _borrower.
-    // @return A bool representing whether verification succeeded, showing that
-    //         this signature matched this address and parameters.
-    function isValidBorrowerSignature(
-        uint256 _nftCollateralId,
-        uint256 _borrowerNonce,
-        address _nftCollateralContract,
-        address _borrower,
-        bytes memory _borrowerSignature
-    ) public view returns(bool) {
-        if(_borrower == address(0)){
-            return false;
-        } else {
-            uint256 chainId;
-            chainId = getChainID();
-            bytes32 message = keccak256(abi.encodePacked(
-                _nftCollateralId,
-                _borrowerNonce,
-                _nftCollateralContract,
-                _borrower,
-                chainId
-            ));
-
-            bytes32 messageWithEthSignPrefix = message.toEthSignedMessageHash();
-
-            return (messageWithEthSignPrefix.recover(_borrowerSignature) == _borrower);
-        }
-    }
-
-    // @notice This function is called in NFTfi.beginLoan() to validate the
-    //         lender's signature that the lender provided off-chain to
-    //         verify that they did indeed want to agree to this loan according
-    //         to these terms.
-    // @param  _loanPrincipalAmount - The original sum of money transferred
-    //         from lender to borrower at the beginning of the loan, measured
-    //         in loanERC20Denomination's smallest units.
-    // @param  _maximumRepaymentAmount - The maximum amount of money that the
-    //         borrower would be required to retrieve their collateral. If
-    //         interestIsProRated is set to false, then the borrower will
-    //         always have to pay this amount to retrieve their collateral.
-    // @param  _nftCollateralId - The ID within the NFTCollateralContract for
-    //         the NFT being used as collateral for this loan. The NFT is
-    //         stored within this contract during the duration of the loan.
-    // @param  _loanDuration - The amount of time (measured in seconds) that can
-    //         elapse before the lender can liquidate the loan and seize the
-    //         underlying collateral NFT.
-    // @param  _loanInterestRateForDurationInBasisPoints - The interest rate
-    //         (measured in basis points, e.g. hundreths of a percent) for the
-    //         loan, that must be repaid pro-rata by the borrower at the
-    //         conclusion of the loan or risk seizure of their nft collateral.
-    // @param  _adminFeeInBasisPoints - The percent (measured in basis
-    //         points) of the interest earned that will be taken as a fee by
-    //         the contract admins when the loan is repaid. The fee is stored
-    //         in the loan struct to prevent an attack where the contract
-    //         admins could adjust the fee right before a loan is repaid, and
-    //         take all of the interest earned.
-    // @param  _lenderNonce - The nonce referred to here
-    //         is not the same as an Ethereum account's nonce. We are referring
-    //         instead to nonces that are used by both the lender and the
-    //         borrower when they are first signing off-chain NFTfi orders.
-    //         These nonces can be any uint256 value that the user has not
-    //         previously used to sign an off-chain order. Each nonce can be
-    //         used at most once per user within NFTfi, regardless of whether
-    //         they are the lender or the borrower in that situation. This
-    //         serves two purposes. First, it prevents replay attacks where an
-    //         attacker would submit a user's off-chain order more than once.
-    //         Second, it allows a user to cancel an off-chain order by calling
-    //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
-    //         off-chain order that contains that nonce.
-    // @param  _nftCollateralContract - The ERC721 contract of the NFT
-    //         collateral
-    // @param  _loanERC20Denomination - The ERC20 contract of the currency being
-    //         used as principal/interest for this loan.
-    // @param  _lender - The address of the lender. The lender can change their
-    //         address by transferring the NFTfi ERC721 token that they
-    //         received when the loan began.
-    // @param  _interestIsProRated - A boolean value determining whether the
-    //         interest will be pro-rated if the loan is repaid early, or
-    //         whether the borrower will simply pay maximumRepaymentAmount.
-    // @param  _lenderSignature - The ECDSA signature of the lender,
-    //         obtained off-chain ahead of time, signing the following
-    //         combination of parameters: _loanPrincipalAmount,
-    //         _maximumRepaymentAmount _nftCollateralId, _loanDuration,
-    //         _loanInterestRateForDurationInBasisPoints, _lenderNonce,
-    //         _nftCollateralContract, _loanERC20Denomination, _lender,
-    //         _interestIsProRated.
-    // @return A bool representing whether verification succeeded, showing that
-    //         this signature matched this address and parameters.
-    function isValidLenderSignature(
-        uint256 _loanPrincipalAmount,
-        uint256 _maximumRepaymentAmount,
-        uint256 _nftCollateralId,
-        uint256 _loanDuration,
-        uint256 _loanInterestRateForDurationInBasisPoints,
-        uint256 _adminFeeInBasisPoints,
-        uint256 _lenderNonce,
-        address _nftCollateralContract,
-        address _loanERC20Denomination,
-        address _lender,
-        bool _interestIsProRated,
-        bytes memory _lenderSignature
-    ) public view returns(bool) {
-        if(_lender == address(0)){
-            return false;
-        } else {
-            uint256 chainId;
-            chainId = getChainID();
-            bytes32 message = keccak256(abi.encodePacked(
-                _loanPrincipalAmount,
-                _maximumRepaymentAmount,
-                _nftCollateralId,
-                _loanDuration,
-                _loanInterestRateForDurationInBasisPoints,
-                _adminFeeInBasisPoints,
-                _lenderNonce,
-                _nftCollateralContract,
-                _loanERC20Denomination,
-                _lender,
-                _interestIsProRated,
-                chainId
-            ));
-
-            bytes32 messageWithEthSignPrefix = message.toEthSignedMessageHash();
-
-            return (messageWithEthSignPrefix.recover(_lenderSignature) == _lender);
-        }
-    }
-}
-
-
-
-
-pragma solidity ^0.5.16;
-
-
-
-
-
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./utils/LoanAdmin.sol";
+import "./utils/SignatureLoan.sol";
 
 // @title  Main contract for NFTfi. This contract manages the ability to create
 //         NFT-backed peer-to-peer loans.
@@ -335,12 +21,12 @@ pragma solidity ^0.5.16;
 //         kittybounties.eth
 // @notice There are five steps needed to commence an NFT-backed loan. First,
 //         the borrower calls nftContract.approveAll(NFTfi), approving the NFTfi
-//         contract to move their NFT's on their behalf. Second, the borrower
+//         contract to move their NFT"s on their behalf. Second, the borrower
 //         signs an off-chain message for each NFT that they would like to
 //         put up for collateral. This prevents borrowers from accidentally
-//         lending an NFT that they didn't mean to lend, due to approveAll()
+//         lending an NFT that they didn"t mean to lend, due to approveAll()
 //         approving their entire collection. Third, the lender calls
-//         erc20Contract.approve(NFTfi), allowing NFTfi to move the lender's
+//         erc20Contract.approve(NFTfi), allowing NFTfi to move the lender"s
 //         ERC20 tokens on their behalf. Fourth, the lender signs an off-chain
 //         message, proposing the amount, rate, and duration of a loan for a
 //         particular NFT. Fifth, the borrower calls NFTfi.beginLoan() to
@@ -358,7 +44,7 @@ pragma solidity ^0.5.16;
 // @notice A loan may end in one of two ways. First, a borrower may call
 //         NFTfi.payBackLoan() and pay back the loan plus interest at any time,
 //         in which case they receive their NFT back in the same transaction.
-//         Second, if the loan's duration has passed and the loan has not been
+//         Second, if the loan"s duration has passed and the loan has not been
 //         paid back yet, a lender can call NFTfi.liquidateOverdueLoan(), in
 //         which case they receive the underlying NFT collateral and forfeit
 //         the rights to the principal-plus-interest, which the borrower now
@@ -370,9 +56,9 @@ pragma solidity ^0.5.16;
 //         loanInterestRateForDurationInBasisPoints), then the borrower pays
 //         the maximumRepaymentAmount regardless of whether they repay early
 //         or not.
-contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
+contract Loan is LoanAdmin, SignatureLoan, ERC721 {
 
-    // @notice OpenZeppelin's SafeMath library is used for all arithmetic
+    // @notice OpenZeppelin"s SafeMath library is used for all arithmetic
     //         operations to avoid overflows/underflows.
     using SafeMath for uint256;
 
@@ -381,17 +67,17 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     /* ********** */
 
     // @notice The main Loan struct. The struct fits in six 256-bits words due
-    //         to Solidity's rules for struct packing.
+    //         to Solidity"s rules for struct packing.
     struct Loan {
         // A unique identifier for this particular loan, sourced from the
         // continuously increasing parameter totalNumLoans.
         uint256 loanId;
         // The original sum of money transferred from lender to borrower at the
-        // beginning of the loan, measured in loanERC20Denomination's smallest
+        // beginning of the loan, measured in loanERC20Denomination"s smallest
         // units.
         uint256 loanPrincipalAmount;
         // The maximum amount of money that the borrower would be required to
-        // repay retrieve their collateral, measured in loanERC20Denomination's
+        // repay retrieve their collateral, measured in loanERC20Denomination"s
         // smallest units. If interestIsProRated is set to false, then the
         // borrower will always have to pay this amount to retrieve their
         // collateral, regardless of whether they repay early.
@@ -448,7 +134,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         received when the loan began.
     // @param  loanPrincipalAmount - The original sum of money transferred from
     //         lender to borrower at the beginning of the loan, measured in
-    //         loanERC20Denomination's smallest units.
+    //         loanERC20Denomination"s smallest units.
     // @param  maximumRepaymentAmount - The maximum amount of money that the
     //         borrower would be required to retrieve their collateral. If
     //         interestIsProRated is set to false, then the borrower will
@@ -501,7 +187,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         received when the loan began.
     // @param  loanPrincipalAmount - The original sum of money transferred from
     //         lender to borrower at the beginning of the loan, measured in
-    //         loanERC20Denomination's smallest units.
+    //         loanERC20Denomination"s smallest units.
     // @param  nftCollateralId - The ID within the NFTCollateralContract for the
     //         NFT being used as collateral for this loan. The NFT is stored
     //         within this contract during the duration of the loan.
@@ -539,7 +225,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         received when the loan began.
     // @param  loanPrincipalAmount - The original sum of money transferred from
     //         lender to borrower at the beginning of the loan, measured in
-    //         loanERC20Denomination's smallest units.
+    //         loanERC20Denomination"s smallest units.
     // @param  nftCollateralId - The ID within the NFTCollateralContract for the
     //         NFT being used as collateral for this loan. The NFT is stored
     //         within this contract during the duration of the loan.
@@ -572,7 +258,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     // @notice A counter of the number of currently outstanding loans.
     uint256 public totalActiveLoans = 0;
 
-    // @notice A mapping from a loan's identifier to the loan's details,
+    // @notice A mapping from a loan"s identifier to the loan"s details,
     //         represted by the loan struct. To fetch the lender, call
     //         NFTfi.ownerOf(loanId).
     mapping (uint256 => Loan) public loanIdToLoan;
@@ -582,11 +268,11 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         liquidate the same loan twice.
     mapping (uint256 => bool) public loanRepaidOrLiquidated;
 
-    // @notice A mapping that takes both a user's address and a loan nonce
+    // @notice A mapping that takes both a user"s address and a loan nonce
     //         that was first used when signing an off-chain order and checks
     //         whether that nonce has previously either been used for a loan,
     //         or has been pre-emptively cancelled. The nonce referred to here
-    //         is not the same as an Ethereum account's nonce. We are referring
+    //         is not the same as an Ethereum account"s nonce. We are referring
     //         instead to nonces that are used by both the lender and the
     //         borrower when they are first signing off-chain NFTfi orders.
     //         These nonces can be any uint256 value that the user has not
@@ -594,10 +280,10 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         used at most once per user within NFTfi, regardless of whether
     //         they are the lender or the borrower in that situation. This
     //         serves two purposes. First, it prevents replay attacks where an
-    //         attacker would submit a user's off-chain order more than once.
+    //         attacker would submit a user"s off-chain order more than once.
     //         Second, it allows a user to cancel an off-chain order by calling
     //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
+    //         nonce as used and prevents any future loan from using the user"s
     //         off-chain order that contains that nonce.
     mapping (address => mapping (uint256 => bool)) private _nonceHasBeenUsedForUser;
 
@@ -626,7 +312,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         not pro-rated if repaid early.
     // @param  _loanPrincipalAmount - The original sum of money transferred
     //         from lender to borrower at the beginning of the loan, measured
-    //         in loanERC20Denomination's smallest units.
+    //         in loanERC20Denomination"s smallest units.
     // @param  _maximumRepaymentAmount - The maximum amount of money that the
     //         borrower would be required to retrieve their collateral,
     //         measured in the smallest units of the ERC20 currency used for
@@ -659,7 +345,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     // @param  _borrowerAndLenderNonces - An array of two UINT256 values, the
     //         first of which is the _borrowerNonce and the second of which is
     //         the _lenderNonce. The nonces referred to here are not the same
-    //         as an Ethereum account's nonce. We are referring instead to
+    //         as an Ethereum account"s nonce. We are referring instead to
     //         nonces that are used by both the lender and the borrower when
     //         they are first signing off-chain NFTfi orders. These nonces can
     //         be any uint256 value that the user has not previously used to
@@ -667,10 +353,10 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         user within NFTfi, regardless of whether they are the lender or
     //         the borrower in that situation. This serves two purposes. First,
     //         it prevents replay attacks where an attacker would submit a
-    //         user's off-chain order more than once. Second, it allows a user
+    //         user"s off-chain order more than once. Second, it allows a user
     //         to cancel an off-chain order by calling
     //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
+    //         nonce as used and prevents any future loan from using the user"s
     //         off-chain order that contains that nonce.
     // @param  _nftCollateralContract - The address of the ERC721 contract of
     //         the NFT collateral.
@@ -724,15 +410,15 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
         });
 
         // Sanity check loan values.
-        require(loan.maximumRepaymentAmount >= loan.loanPrincipalAmount, 'Negative interest rate loans are not allowed.');
-        require(uint256(loan.loanDuration) <= maximumLoanDuration, 'Loan duration exceeds maximum loan duration');
-        require(uint256(loan.loanDuration) != 0, 'Loan duration cannot be zero');
-        require(uint256(loan.loanAdminFeeInBasisPoints) == adminFeeInBasisPoints, 'The admin fee has changed since this order was signed.');
+        require(loan.maximumRepaymentAmount >= loan.loanPrincipalAmount, "Negative interest rate loans are not allowed.");
+        require(uint256(loan.loanDuration) <= maximumLoanDuration, "Loan duration exceeds maximum loan duration");
+        require(uint256(loan.loanDuration) != 0, "Loan duration cannot be zero");
+        require(uint256(loan.loanAdminFeeInBasisPoints) == adminFeeInBasisPoints, "The admin fee has changed since this order was signed.");
 
         // Check that both the collateral and the principal come from supported
         // contracts.
-        require(erc20CurrencyIsWhitelisted[loan.loanERC20Denomination], 'Currency denomination is not whitelisted to be used by this contract');
-        require(nftContractIsWhitelisted[loan.nftCollateralContract], 'NFT collateral contract is not whitelisted to be used by this contract');
+        require(erc20CurrencyIsWhitelisted[loan.loanERC20Denomination], "Currency denomination is not whitelisted to be used by this contract");
+        require(nftContractIsWhitelisted[loan.nftCollateralContract], "NFT collateral contract is not whitelisted to be used by this contract");
 
         // Check loan nonces. These are different from Ethereum account nonces.
         // Here, these are uint256 numbers that should uniquely identify
@@ -740,9 +426,9 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
         // off-chain signature for each nonce, with a nonce being any arbitrary
         // uint256 value that they have not used yet for an off-chain NFTfi
         // signature).
-        require(!_nonceHasBeenUsedForUser[msg.sender][_borrowerAndLenderNonces[0]], 'Borrower nonce invalid, borrower has either cancelled/begun this loan, or reused this nonce when signing');
+        require(!_nonceHasBeenUsedForUser[msg.sender][_borrowerAndLenderNonces[0]], "Borrower nonce invalid, borrower has either cancelled/begun this loan, or reused this nonce when signing");
         _nonceHasBeenUsedForUser[msg.sender][_borrowerAndLenderNonces[0]] = true;
-        require(!_nonceHasBeenUsedForUser[_lender][_borrowerAndLenderNonces[1]], 'Lender nonce invalid, lender has either cancelled/begun this loan, or reused this nonce when signing');
+        require(!_nonceHasBeenUsedForUser[_lender][_borrowerAndLenderNonces[1]], "Lender nonce invalid, lender has either cancelled/begun this loan, or reused this nonce when signing");
         _nonceHasBeenUsedForUser[_lender][_borrowerAndLenderNonces[1]] = true;
 
         // Check that both signatures are valid.
@@ -752,7 +438,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
             loan.nftCollateralContract,
             msg.sender,      //borrower,
             _borrowerSignature
-        ), 'Borrower signature is invalid');
+        ), "Borrower signature is invalid");
         require(isValidLenderSignature(
             loan.loanPrincipalAmount,
             loan.maximumRepaymentAmount,
@@ -766,7 +452,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
             _lender,
             loan.interestIsProRated,
             _lenderSignature
-        ), 'Lender signature is invalid');
+        ), "Lender signature is invalid");
 
         // Add the loan to storage before moving collateral/principal to follow
         // the Checks-Effects-Interactions pattern.
@@ -775,7 +461,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
 
         // Update number of active loans.
         totalActiveLoans = totalActiveLoans.add(1);
-        require(totalActiveLoans <= maximumNumberOfActiveLoans, 'Contract has reached the maximum number of active loans allowed by admins');
+        require(totalActiveLoans <= maximumNumberOfActiveLoans, "Contract has reached the maximum number of active loans allowed by admins");
 
         // Transfer collateral from borrower to this contract to be held until
         // loan completion.
@@ -819,15 +505,15 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         borrower could call NFTfi.payBackLoan(), the borrower will get
     //         to keep the principal-plus-interest.
     // @notice This function is purposefully not pausable in order to prevent
-    //         an attack where the contract admin's pause the contract and hold
-    //         hostage the NFT's that are still within it.
+    //         an attack where the contract admin"s pause the contract and hold
+    //         hostage the NFT"s that are still within it.
     // @param _loanId  A unique identifier for this particular loan, sourced
     //        from the continuously increasing parameter totalNumLoans.
     function payBackLoan(uint256 _loanId) external nonReentrant {
         // Sanity check that payBackLoan() and liquidateOverdueLoan() have
         // never been called on this loanId. Depending on how the rest of the
         // code turns out, this check may be unnecessary.
-        require(!loanRepaidOrLiquidated[_loanId], 'Loan has already been repaid or liquidated');
+        require(!loanRepaidOrLiquidated[_loanId], "Loan has already been repaid or liquidated");
 
         // Fetch loan details from storage, but store them in memory for the
         // sake of saving gas.
@@ -835,7 +521,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
 
         // Check that the borrower is the caller, only the borrower is entitled
         // to the collateral.
-        require(msg.sender == loan.borrower, 'Only the borrower can pay back a loan and reclaim the underlying NFT');
+        require(msg.sender == loan.borrower, "Only the borrower can pay back a loan and reclaim the underlying NFT");
 
         // Fetch current owner of loan promissory note.
         address lender = ownerOf(_loanId);
@@ -872,9 +558,9 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
             loan.nftCollateralContract,
             loan.nftCollateralId,
             loan.borrower
-        ), 'NFT was not successfully transferred');
+        ), "NFT was not successfully transferred");
 
-        // Destroy the lender's promissory note.
+        // Destroy the lender"s promissory note.
         _burn(_loanId);
 
         // Emit an event with all relevant details from this transaction.
@@ -892,7 +578,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
 
         // Delete the loan from storage in order to achieve a substantial gas
         // savings and to lessen the burden of storage on Ethereum nodes, since
-        // we will never access this loan's details again, and the details are
+        // we will never access this loan"s details again, and the details are
         // still available through event data.
         delete loanIdToLoan[_loanId];
     }
@@ -903,8 +589,8 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         although the lender gives up all rights to the
     //         principal-plus-collateral by doing so.
     // @notice This function is purposefully not pausable in order to prevent
-    //         an attack where the contract admin's pause the contract and hold
-    //         hostage the NFT's that are still within it.
+    //         an attack where the contract admin"s pause the contract and hold
+    //         hostage the NFT"s that are still within it.
     // @notice We intentionally allow anybody to call this function, although
     //         only the lender will end up receiving the seized collateral. We
     //         are exploring the possbility of incentivizing users to call this
@@ -915,7 +601,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
         // Sanity check that payBackLoan() and liquidateOverdueLoan() have
         // never been called on this loanId. Depending on how the rest of the
         // code turns out, this check may be unnecessary.
-        require(!loanRepaidOrLiquidated[_loanId], 'Loan has already been repaid or liquidated');
+        require(!loanRepaidOrLiquidated[_loanId], "Loan has already been repaid or liquidated");
 
         // Fetch loan details from storage, but store them in memory for the
         // sake of saving gas.
@@ -924,7 +610,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
         // Ensure that the loan is indeed overdue, since we can only liquidate
         // overdue loans.
         uint256 loanMaturityDate = (uint256(loan.loanStartTime)).add(uint256(loan.loanDuration));
-        require(now > loanMaturityDate, 'Loan is not overdue yet');
+        require(now > loanMaturityDate, "Loan is not overdue yet");
 
         // Fetch the current lender of the promissory note corresponding to
         // this overdue loan.
@@ -943,9 +629,9 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
             loan.nftCollateralContract,
             loan.nftCollateralId,
             lender
-        ), 'NFT was not successfully transferred');
+        ), "NFT was not successfully transferred");
 
-        // Destroy the lender's promissory note for this loan, since by seizing
+        // Destroy the lender"s promissory note for this loan, since by seizing
         // the collateral, the lender has forfeit the rights to the loan
         // principal-plus-interest.
         _burn(_loanId);
@@ -964,7 +650,7 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
 
         // Delete the loan from storage in order to achieve a substantial gas
         // savings and to lessen the burden of storage on Ethereum nodes, since
-        // we will never access this loan's details again, and the details are
+        // we will never access this loan"s details again, and the details are
         // still available through event data.
         delete loanIdToLoan[_loanId];
     }
@@ -975,21 +661,21 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     //         there should only be one off-chain order that contains this
     //         nonce at all.
     // @param  _nonce - The nonce referred to here is not the same as an
-    //         Ethereum account's nonce. We are referring instead to nonces
+    //         Ethereum account"s nonce. We are referring instead to nonces
     //         that are used by both the lender and the borrower when they are
     //         first signing off-chain NFTfi orders. These nonces can be any
     //         uint256 value that the user has not previously used to sign an
     //         off-chain order. Each nonce can be used at most once per user
     //         within NFTfi, regardless of whether they are the lender or the
     //         borrower in that situation. This serves two purposes. First, it
-    //         prevents replay attacks where an attacker would submit a user's
+    //         prevents replay attacks where an attacker would submit a user"s
     //         off-chain order more than once. Second, it allows a user to
     //         cancel an off-chain order by calling
     //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
+    //         nonce as used and prevents any future loan from using the user"s
     //         off-chain order that contains that nonce.
     function cancelLoanCommitmentBeforeLoanHasBegun(uint256 _nonce) external {
-        require(!_nonceHasBeenUsedForUser[msg.sender][_nonce], 'Nonce invalid, user has either cancelled/begun this loan, or reused a nonce when signing');
+        require(!_nonceHasBeenUsedForUser[msg.sender][_nonce], "Nonce invalid, user has either cancelled/begun this loan, or reused a nonce when signing");
         _nonceHasBeenUsedForUser[msg.sender][_nonce] = true;
     }
 
@@ -1025,18 +711,18 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     // @param  _user - The address of the user. This function works for both
     //         lenders and borrowers alike.
     // @param  _nonce - The nonce referred to here is not the same as an
-    //         Ethereum account's nonce. We are referring instead to nonces
+    //         Ethereum account"s nonce. We are referring instead to nonces
     //         that are used by both the lender and the borrower when they are
     //         first signing off-chain NFTfi orders. These nonces can be any
     //         uint256 value that the user has not previously used to sign an
     //         off-chain order. Each nonce can be used at most once per user
     //         within NFTfi, regardless of whether they are the lender or the
     //         borrower in that situation. This serves two purposes. First, it
-    //         prevents replay attacks where an attacker would submit a user's
+    //         prevents replay attacks where an attacker would submit a user"s
     //         off-chain order more than once. Second, it allows a user to
     //         cancel an off-chain order by calling
     //         NFTfi.cancelLoanCommitmentBeforeLoanHasBegun(), which marks the
-    //         nonce as used and prevents any future loan from using the user's
+    //         nonce as used and prevents any future loan from using the user"s
     //         off-chain order that contains that nonce.
     // @return A bool representing whether or not this nonce has been used for
     //         this user.
@@ -1177,9 +863,9 @@ contract NFTfi is NFTfiAdmin, NFTfiSigningUtils, ERC721 {
     /* FALLBACK FUNCTION */
     /* ***************** */
 
-    // @notice By calling 'revert' in the fallback function, we prevent anyone
+    // @notice By calling "revert" in the fallback function, we prevent anyone
     //         from accidentally sending funds directly to this contract.
-    function() external payable {
+    function() payable external {
         revert();
     }
 }
