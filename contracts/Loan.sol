@@ -69,8 +69,6 @@ contract Loan is LoanAdmin, SignatureLoan, ERC721 {
     // @notice The main Loan struct. The struct fits in six 256-bits words due
     //         to Solidity"s rules for struct packing.
     struct Loan {
-        // A unique identifier for this particular loan, sourced from the
-        // continuously increasing parameter totalNumLoans.
         uint256 loanId;
         // The original sum of money transferred from lender to borrower at the
         // beginning of the loan, measured in loanERC20Denomination"s smallest
@@ -109,6 +107,8 @@ contract Loan is LoanAdmin, SignatureLoan, ERC721 {
         // The ERC20 contract of the currency being used as principal/interest
         // for this loan.
         address loanERC20Denomination;
+        //The address of the lender;
+        address lender;
         // The address of the borrower.
         address borrower;
         // A boolean value determining whether the interest will be pro-rated
